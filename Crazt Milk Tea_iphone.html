@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Crazy Milk Tea 三日奶茶经营模拟器</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft Yahei",system-ui}
+body{
+  background: linear-gradient(135deg,#fff7e8,#ffe8d0,#ffdfd0);
+  min-height:100vh;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) 16px; /* 适配 iPhone 底部安全区 */
+}
+.container{
+  max-width: 430px; /* 完美契合 iPhone 16 系列的逻辑宽度范围 */
+  margin:0 auto;
+}
+.header{
+  text-align:center;padding:12px 0 20px;
+}
+.header h1{
+  font-size:24px;background:linear-gradient(90deg,#c86028,#e67e40);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:6px;
+}
+.header p{color:#886040;font-size:13px}
+.main-wrap{
+  display: flex;
+  flex-direction: column; /* 调整为单列垂直排列 */
+  gap: 16px;
+}
+.control-card{
+  background:rgba(255,255,255,0.92);
+  border-radius:22px;padding:20px;box-shadow:0 6px 24px rgba(200,100,40,0.12);
+}
+.card-title{
+  font-size:16px;font-weight:bold;color:#c05824;margin-bottom:14px;
+  padding-bottom:10px;border-bottom:1px solid #ffe2d0;
+}
+.form-item{margin-bottom:16px}
+.form-item label{display:block;margin-bottom:6px;color:#664430;font-weight:500;font-size:14px;}
+.form-item input[type="range"]{width:100%; height:24px;} /* 增加触控热区 */
+.val-row{display:flex;justify-content:space-between;margin-top:4px;color:#996644;font-size:12px}
+.btn{
+  width:100%;padding:14px;border:none;border-radius:14px;font-size:16px;font-weight:bold;
+  cursor:pointer;transition:0.2s all;margin-top:10px
+}
+.btn-run{background:linear-gradient(135deg,#ff8844,#e66222);color:#fff}
+.btn-run:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(230,100,30,0.3)}
+.btn-reset{background:#f0e0d6;color:#b05828;margin-top:8px}
+.data-board{
+  display:grid;
+  grid-template-columns:repeat(2,1fr); /* 在 iPhone 窄屏上采用 2x2 布局防止挤压 */
+  gap:12px;margin-bottom:16px
+}
+.stat-card{
+  background:rgba(255,255,255,0.9);border-radius:16px;padding:12px 8px;text-align:center;
+  box-shadow:0 4px 14px rgba(200,90,30,0.08)
+}
+.stat-card .num{font-size:20px;font-weight:bold;margin:4px 0}
+.stat-card .label{font-size:12px;color:#886040}
+.chart-wrap{
+  display:grid;
+  grid-template-columns:1fr; /* 图表由并排改为上下堆叠排列 */
+  gap:16px;margin-bottom:16px
+}
+.chart-box{
+  background:rgba(255,255,255,0.9);border-radius:16px;padding:16px;height:280px;
+  box-shadow:0 4px 14px rgba(200,90,30,0.08)
+}
+#chart-day-trend{height:260px}
+/* 弹窗遮罩 */
+.modal-mask{
+  position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:999;
+  padding: 16px;
+}
+.modal-box{
+  width:100%;background:#fff;border-radius:24px;padding:20px;max-height:85vh;overflow-y:auto
+}
+.modal-title{font-size:20px;font-weight:bold;margin-bottom:12px;color:#c05824}
+.eval-tag{
+  display:inline-block;padding:6px 14px;border-radius:99px;color:#fff;font-weight:bold;margin:6px 0 14px;font-size:13px;
+}
+.eval-bankrupt{background:#e53935}
+.eval-small{background:#f59e0b}
+.eval-normal{background:#10b981}
+.eval-big{background:#d97706}
+.table-report{width:100%;border-collapse:collapse;margin:12px 0}
+.table-report th,.table-report td{border:1px solid #f2e0d6;padding:8px 6px;text-align:center;font-size:13px}
+.table-report th{background:#fff2e8;color:#a05020}
+.modal-btn{
+  padding:12px 32px;border:none;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer;margin-top:12px;width: 100%; /* 移动端按钮全宽易点击 */
+}
+.text-red{color:#e53935;font-weight:bold}
+.text-yellow{color:#f59e0b;font-weight:bold}
+.text-green{color:#10b981;font-weight:bold}
+.text-gold{color:#d97706;font-weight:bold}
+.day-indicator{
+  display:inline-block;padding:6px 16px;border-radius:99px;background:#ffe8d0;color:#c05828;font-weight:bold;margin-bottom:16px;font-size:14px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🧋 Crazy Milk Tea 三日奶茶经营模拟器</h1>
+    <p>严格复刻数学经营公式 | 可视化经营面板</p>
+  </div>
+  <div class="main-wrap">
+    <div class="control-card">
+      <div class="card-title">今日经营参数设置</div>
+      <div class="day-indicator">当前经营天数：<span id="cur-day">第1天</span></div>
+      <div class="form-item">
+        <label>单杯售价 P ($2.99 ~ $12.99)</label>
+        <input type="range" id="price" min="2.99" max="12.99" step="0.1" value="6.49">
+        <div class="val-row"><span>当前售价：$<span id="price-val">6.49</span></span><span>竞品基准：$5.99</span></div>
+      </div>
+      <div class="form-item">
+        <label>进货库存 Qstock (100 ~ 1800杯)</label>
+        <input type="range" id="stock" min="100" max="1800" step="50" value="750">
+        <div class="val-row"><span>进货量：<span id="stock-val">750</span> 杯</span><span>单杯原料成本 $1.80</span></div>
+      </div>
+      <div class="form-item">
+        <label>营销投放 Mspend ($0 ~ $320)</label>
+        <input type="range" id="market" min="0" max="320" step="10" value="120">
+        <div class="val-row"><span>投放金额：$<span id="market-val">120</span></span><span>单日固定开销 $160</span></div>
+      </div>
+      <button class="btn btn-run" id="run-day-btn">执行今日全天经营</button>
+      <button class="btn btn-reset" id="reset-game-btn">重新开始三日赛程</button>
+    </div>
+
+    <div class="visual-area">
+      <div class="data-board">
+        <div class="stat-card">
+          <div class="label">当日总营收</div>
+          <div class="num" id="rev-num">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">当日净利润</div>
+          <div class="num" id="profit-num">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">总售出杯数</div>
+          <div class="num" id="sell-num">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">库存浪费率</div>
+          <div class="num" id="waste-num">0%</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-box">
+          <div class="card-title">早/午/晚时段销量分布</div>
+          <div id="chart-phase" style="width:100%;height:200px"></div>
+        </div>
+        <div class="chart-box">
+          <div class="card-title">当日成本结构占比</div>
+          <div id="chart-cost" style="width:100%;height:200px"></div>
+        </div>
+      </div>
+      <div class="chart-box" id="chart-day-trend">
+        <div class="card-title">三日净利润对比（通关后显示）</div>
+        <div id="chart-total-day" style="width:100%;height:180px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="modal-day">
+  <div class="modal-box">
+    <h2 class="modal-title">📊 当日经营结算报告</h2>
+    <div id="day-eval-tag"></div>
+    <table class="table-report" id="day-report-table"></table>
+    <div style="text-align:right">
+      <button class="modal-btn" id="next-day-btn">进入下一天经营</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="modal-bankrupt">
+  <div class="modal-box">
+    <h2 class="modal-title text-red">💥 门店破产！经营终止</h2>
+    <div class="eval-tag eval-bankrupt">当日净利润≤0，现金流断裂</div>
+    <table class="table-report" id="bankrupt-report-table"></table>
+    <div style="text-align:right">
+      <button class="modal-btn" id="restart-bankrupt-btn">重新开局</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="modal-final">
+  <div class="modal-box">
+    <h2 class="modal-title">🏆 三日完整经营总报告</h2>
+    <div id="final-eval-tag"></div>
+    <table class="table-report" id="final-report-table"></table>
+    <div style="text-align:right">
+      <button class="modal-btn" id="restart-final-btn">开启新一轮经营</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 原生DOM选择器（纯浏览器自带API，无jQuery）
+function $(selector) {
+  return document.querySelector(selector);
+}
+
+// 原生修改文本内容，替代错误的 .text()
+function setText(el, content) {
+  el.textContent = content;
+}
+
+// 全局固定常量（完全匹配文档公式）
+const CONST = {
+  C_base: 1200,
+  Cost_mat: 1.80,
+  M_eff: 0.35,
+  Cost_fix: 160,
+  S_decay: 0.0012,
+  P_comp: 5.99,
+  K_price: 0.18,
+  D_mar: 0.62,
+  W_m: 0.25,
+  W_a: 0.50,
+  W_n: 0.25
+};
+
+// 全局游戏状态
+var gameState = {
+  currentDay: 1,
+  maxDay: 3,
+  dayRecords: [null, null, null],
+  today: null
+};
+
+// ECharts实例全局变量
+var chartPhase = null;
+var chartCost = null;
+var chartTotalDay = null;
+
+// 初始化图表（容错：无ECharts不报错）
+function initEcharts() {
+  if (typeof echarts === "undefined") {
+    console.log("ECharts未加载，图表功能禁用，游戏正常使用");
+    return;
+  }
+  try {
+    chartPhase = echarts.init($("#chart-phase"));
+    chartCost = echarts.init($("#chart-cost"));
+    chartTotalDay = echarts.init($("#chart-total-day"));
+    window.addEventListener("resize", function () {
+      if (chartPhase) chartPhase.resize();
+      if (chartCost) chartCost.resize();
+      if (chartTotalDay) chartTotalDay.resize();
+    });
+  } catch (err) {
+    console.log("图表初始化异常", err);
+  }
+}
+
+// 滑块数值实时同步（修复点：使用setText原生方法）
+function bindSliderEvent() {
+  var priceInput = $("#price");
+  var stockInput = $("#stock");
+  var marketInput = $("#market");
+
+  priceInput.addEventListener("input", function () {
+    setText($("#price-val"), parseFloat(this.value).toFixed(2));
+  });
+  stockInput.addEventListener("input", function () {
+    setText($("#stock-val"), this.value);
+  });
+  marketInput.addEventListener("input", function () {
+    setText($("#market-val"), this.value);
+  });
+}
+
+// 单时段数学计算核心函数
+function calcSinglePhase(M_spend, P, Q_stock, W_phase) {
+  var C_mark;
+  if (M_spend > 0) {
+    C_mark = CONST.C_base * (1 - Math.exp(-M_spend * CONST.M_eff * CONST.D_mar));
+  } else {
+    C_mark = CONST.C_base * 0.22;
+  }
+  var priceGap = Math.max(0, P - CONST.P_comp);
+  var F_price = Math.exp(-CONST.K_price * priceGap);
+  var C_phase = C_mark * F_price * W_phase;
+  var Q_sell = Math.min(C_phase, Q_stock);
+  var Q_over = Math.max(0, Q_stock - C_phase);
+  var Cost_spoil = Q_over * Q_over * CONST.S_decay * CONST.Cost_mat;
+  var Rev_phase = Q_sell * P;
+  var Cost_mat_total = Q_stock * CONST.Cost_mat;
+  var Profit_var = Rev_phase - Cost_mat_total - Cost_spoil - M_spend;
+  return {
+    C_mark: C_mark,
+    F_price: F_price,
+    C_phase: C_phase,
+    Q_sell: Q_sell,
+    Q_over: Q_over,
+    Cost_spoil: Cost_spoil,
+    Rev_phase: Rev_phase,
+    Cost_mat_total: Cost_mat_total,
+    Profit_var: Profit_var
+  };
+}
+
+// 单日完整经营计算
+function calcWholeDay(P, Q_stock, M_spend) {
+  var mData = calcSinglePhase(M_spend, P, Q_stock, CONST.W_m);
+  var aData = calcSinglePhase(M_spend, P, Q_stock, CONST.W_a);
+  var nData = calcSinglePhase(M_spend, P, Q_stock, CONST.W_n);
+  var Profit_var_day = mData.Profit_var + aData.Profit_var + nData.Profit_var;
+  var Profit_final_day = Profit_var_day - CONST.Cost_fix;
+  var Margin_rate = ((P - CONST.Cost_mat) / P) * 100;
+  var Q_over_total = mData.Q_over + aData.Q_over + nData.Q_over;
+  var Waste_rate = Q_stock === 0 ? 0 : (Q_over_total / Q_stock) * 100;
+  var Q_sell_total = mData.Q_sell + aData.Q_sell + nData.Q_sell;
+  var C_mark_total = mData.C_mark;
+  var Conv_rate = C_mark_total === 0 ? 0 : (Q_sell_total / C_mark_total) * 100;
+  var Rev_day = mData.Rev_phase + aData.Rev_phase + nData.Rev_phase;
+  var Cost_spoil_day = mData.Cost_spoil + aData.Cost_spoil + nData.Cost_spoil;
+  return {
+    input: { P: P, Q_stock: Q_stock, M_spend: M_spend },
+    phase: { m: mData, a: aData, n: nData },
+    Profit_var_day: Profit_var_day,
+    Profit_final_day: Profit_final_day,
+    Margin_rate: Margin_rate,
+    Waste_rate: Waste_rate,
+    Q_sell_total: Q_sell_total,
+    Q_over_total: Q_over_total,
+    Conv_rate: Conv_rate,
+    Rev_day: Rev_day,
+    Cost_spoil_day: Cost_spoil_day
+  };
+}
+
+// 获取当日经营评价
+function getDayEvaluate(profitNum) {
+  if (profitNum <= 0) {
+    return { cls: "eval-bankrupt", text: "今日经营严重亏损，现金流断裂，门店直接破产，经营终止！" };
+  } else if (profitNum <= 100) {
+    return { cls: "eval-small", text: "勉强保本微利，定价、库存或投放存在明显优化空间。" };
+  } else if (profitNum <= 300) {
+    return { cls: "eval-normal", text: "经营状态平稳，收益达标，可小幅调整策略扩大利润。" };
+  } else {
+    return { cls: "eval-big", text: "今日策略完美，客流、定价、库存管控拉满，单日暴利！" };
+  }
+}
+
+// 三日综合评价
+function getTotalEvaluate(totalProfit) {
+  if (totalProfit <= 300) {
+    return { cls: "eval-small", text: "三天整体收益微薄，策略波动大，损耗与投放浪费严重，需要大幅优化经营模型。" };
+  } else if (totalProfit <= 900) {
+    return { cls: "eval-normal", text: "三日经营整体健康，收益稳定，仅部分时段库存/定价存在小幅浪费。" };
+  } else {
+    return { cls: "eval-big", text: "连续三日经营策略优异，综合收益拉满，属于标杆级盈利门店！" };
+  }
+}
+
+// 更新顶部数字看板（全部替换为setText，彻底消除.text()报错）
+function renderDataBoard(dayResult) {
+  setText($("#rev-num"), "$" + dayResult.Rev_day.toFixed(2));
+  var profitVal = dayResult.Profit_final_day;
+  var profitDom = $("#profit-num");
+  setText(profitDom, "$" + profitVal.toFixed(2));
+  profitDom.className = "num";
+  if (profitVal <= 0) profitDom.classList.add("text-red");
+  else if (profitVal <= 100) profitDom.classList.add("text-yellow");
+  else if (profitVal <= 300) profitDom.classList.add("text-green");
+  else profitDom.classList.add("text-gold");
+
+  setText($("#sell-num"), Math.round(dayResult.Q_sell_total));
+  setText($("#waste-num"), dayResult.Waste_rate.toFixed(1) + "%");
+}
+
+// 渲染时段销量柱状图
+function renderPhaseChart(dayResult) {
+  if (!chartPhase) return;
+  var mSell = Math.round(dayResult.phase.m.Q_sell);
+  var aSell = Math.round(dayResult.phase.a.Q_sell);
+  var nSell = Math.round(dayResult.phase.n.Q_sell);
+  chartPhase.setOption({
+    tooltip: { trigger: "axis" },
+    xAxis: { data: ["早市", "午市", "晚市"] },
+    yAxis: { name: "售出杯数" },
+    series: [{ type: "bar", data: [mSell, aSell, nSell], itemStyle: { color: "#ff8844" } }]
+  });
+}
+
+// 渲染成本饼图
+function renderCostPie(dayResult) {
+  if (!chartCost) return;
+  var matCost = dayResult.input.Q_stock * CONST.Cost_mat;
+  var spoilCost = dayResult.Cost_spoil_day;
+  var marketCost = dayResult.input.M_spend;
+  var fixCost = CONST.Cost_fix;
+  chartCost.setOption({
+    tooltip: { trigger: "item", formatter: "{b}: ${c} ({d}%)" },
+    series: [{
+      type: "pie",
+      radius: ["40%", "70%"],
+      data: [
+        { name: "原料采购", value: matCost },
+        { name: "库存损耗", value: spoilCost },
+        { name: "营销投放", value: marketCost },
+        { name: "固定房租人工", value: fixCost }
+      ],
+      itemStyle: {
+        color: function (params) {
+          var colorList = ["#ff9c6e", "#ff5c5c", "#ffc069", "#73a0ff"];
+          return colorList[params.dataIndex];
+        }
+      }
+    }]
+  });
+}
+
+// 渲染三日利润折线
+function renderTotalLineChart() {
+  if (!chartTotalDay) return;
+  var validDays = gameState.dayRecords.filter(function (item) { return item !== null; });
+  var dayLabels = [];
+  var profitData = [];
+  for (var i = 0; i < validDays.length; i++) {
+    dayLabels.push("第" + (i + 1) + "天");
+    profitData.push(parseFloat(validDays[i].Profit_final_day.toFixed(2)));
+  }
+  chartTotalDay.setOption({
+    tooltip: { trigger: "axis" },
+    xAxis: { data: dayLabels },
+    yAxis: { name: "当日净利润($)" },
+    series: [{
+      type: "line",
+      smooth: true,
+      data: profitData,
+      lineStyle: { width: 4, color: "#ff784f" },
+      itemStyle: { color: "#ff784f" }
+    }]
+  });
+}
+
+// 填充当日结算表格
+function fillDayTableHtml(dayData) {
+  var tbl = $("#day-report-table");
+  var m = dayData.phase.m;
+  var a = dayData.phase.a;
+  var n = dayData.phase.n;
+  tbl.innerHTML = `
+  <tr><th>指标</th><th>数值</th></tr>
+  <tr><td>当日售价</td><td>$${dayData.input.P.toFixed(2)}</td></tr>
+  <tr><td>当日进货库存</td><td>${dayData.input.Q_stock} 杯</td></tr>
+  <tr><td>营销投放</td><td>$${dayData.input.M_spend.toFixed(2)}</td></tr>
+  <tr><td>早市销量</td><td>${Math.round(m.Q_sell)} 杯</td></tr>
+  <tr><td>午市销量</td><td>${Math.round(a.Q_sell)} 杯</td></tr>
+  <tr><td>晚市销量</td><td>${Math.round(n.Q_sell)} 杯</td></tr>
+  <tr><td>当日总营收</td><td>$${dayData.Rev_day.toFixed(2)}</td></tr>
+  <tr><td>原料总成本</td><td>$${(dayData.input.Q_stock * CONST.Cost_mat).toFixed(2)}</td></tr>
+  <tr><td>库存变质损耗</td><td>$${dayData.Cost_spoil_day.toFixed(2)}</td></tr>
+  <tr><td>单日固定开销</td><td>$${CONST.Cost_fix.toFixed(2)}</td></tr>
+  <tr><td>毛利率</td><td>${dayData.Margin_rate.toFixed(1)}%</td></tr>
+  <tr><td>库存浪费率</td><td>${dayData.Waste_rate.toFixed(1)}%</td></tr>
+  <tr><td class="text-green">当日最终净利润</td><td class="text-green">$${dayData.Profit_final_day.toFixed(2)}</td></tr>
+  `;
+}
+
+// 破产弹窗表格
+function fillBankruptTableHtml(dayData) {
+  var tbl = $("#bankrupt-report-table");
+  tbl.innerHTML = `
+  <tr><th>指标</th><th>数值</th></tr>
+  <tr><td>当日净利润</td><td class="text-red">$${dayData.Profit_final_day.toFixed(2)}</td></tr>
+  <tr><td>总营收</td><td>$${dayData.Rev_day.toFixed(2)}</td></tr>
+  <tr><td>总售出杯数</td><td>${Math.round(dayData.Q_sell_total)}</td></tr>
+  <tr><td>库存损耗成本</td><td>$${dayData.Cost_spoil_day.toFixed(2)}</td></tr>
+  <tr><td>营销投放</td><td>$${dayData.input.M_spend.toFixed(2)}</td></tr>
+  <tr><td>固定开销</td><td>$${CONST.Cost_fix}</td></tr>
+  `;
+}
+
+// 三日总报表填充
+function fillFinalTableHtml() {
+  var days = gameState.dayRecords;
+  var totalRev = 0, totalSell = 0, totalMat = 0, totalSpoil = 0, totalMarket = 0, totalProfit = 0, totalStock = 0;
+  var avgMargin = 0, totalOver = 0;
+  for (var i = 0; i < days.length; i++) {
+    var d = days[i];
+    totalRev += d.Rev_day;
+    totalSell += d.Q_sell_total;
+    totalMat += d.input.Q_stock * CONST.Cost_mat;
+    totalSpoil += d.Cost_spoil_day;
+    totalMarket += d.input.M_spend;
+    totalProfit += d.Profit_final_day;
+    totalStock += d.input.Q_stock;
+    totalOver += d.Q_over_total;
+    avgMargin += d.Margin_rate;
+  }
+  avgMargin = avgMargin / 3;
+  var totalWasteRate = totalStock === 0 ? 0 : (totalOver / totalStock) * 100;
+  var totalROIText = totalMarket === 0 ? "无投放无ROI" : (((totalRev - totalMat - totalSpoil) / totalMarket) * 100).toFixed(1) + "%";
+  var tbl = $("#final-report-table");
+  tbl.innerHTML = `
+  <tr><th>汇总指标</th><th>三日合计数值</th></tr>
+  <tr><td>三日总营收</td><td>$${totalRev.toFixed(2)}</td></tr>
+  <tr><td>三日总售出杯数</td><td>${Math.round(totalSell)} 杯</td></tr>
+  <tr><td>总原料采购成本</td><td>$${totalMat.toFixed(2)}</td></tr>
+  <tr><td>总库存变质损耗</td><td>$${totalSpoil.toFixed(2)}</td></tr>
+  <tr><td>总营销投放</td><td>$${totalMarket.toFixed(2)}</td></tr>
+  <tr><td>三日固定总开销</td><td>$${(CONST.Cost_fix * 3).toFixed(2)}</td></tr>
+  <tr><td>综合平均毛利率</td><td>${avgMargin.toFixed(1)}%</td></tr>
+  <tr><td>整体库存浪费率</td><td>${totalWasteRate.toFixed(1)}%</td></tr>
+  <tr><td>三日整体营销ROI</td><td>${totalROIText}</td></tr>
+  <tr><td class="text-gold">三日累计净利润</td><td class="text-gold">$${totalProfit.toFixed(2)}</td></tr>
+  <tr><th colspan="2">每日分项净利润明细</th></tr>
+  <tr><td>第1天净利润</td><td>$${days[0].Profit_final_day.toFixed(2)}</td></tr>
+  <tr><td>第2天净利润</td><td>$${days[1].Profit_final_day.toFixed(2)}</td></tr>
+  <tr><td>第3天净利润</td><td>$${days[2].Profit_final_day.toFixed(2)}</td></tr>
+  `;
+  var evalInfo = getTotalEvaluate(totalProfit);
+  $("#final-eval-tag").innerHTML = `<div class="eval-tag ${evalInfo.cls}">${evalInfo.text}</div>`;
+}
+
+// 执行当日经营主函数
+function runCurrentDay() {
+  try {
+    var P = parseFloat($("#price").value);
+    var Q_stock = parseInt($("#stock").value);
+    var M_spend = parseFloat($("#market").value);
+    var dayResult = calcWholeDay(P, Q_stock, M_spend);
+    gameState.today = dayResult;
+    renderDataBoard(dayResult);
+    renderPhaseChart(dayResult);
+    renderCostPie(dayResult);
+    gameState.dayRecords[gameState.currentDay - 1] = dayResult;
+    var profit = dayResult.Profit_final_day;
+    var evalData = getDayEvaluate(profit);
+    fillDayTableHtml(dayResult);
+    $("#day-eval-tag").innerHTML = `<div class="eval-tag ${evalData.cls}">${evalData.text}</div>`;
+    if (profit <= 0) {
+      fillBankruptTableHtml(dayResult);
+      $("#modal-bankrupt").style.display = "flex";
+    } else {
+      $("#modal-day").style.display = "flex";
+    }
+  } catch (err) {
+    alert("计算异常：" + err.message);
+  }
+}
+
+// 进入下一天
+function goNextDay() {
+  $("#modal-day").style.display = "none";
+  gameState.currentDay = gameState.currentDay + 1;
+  setText($("#cur-day"), "第" + gameState.currentDay + "天");
+  if (gameState.currentDay > gameState.maxDay) {
+    renderTotalLineChart();
+    fillFinalTableHtml();
+    $("#modal-final").style.display = "flex";
+  }
+}
+
+// 重置全部游戏
+function resetAllGame() {
+  gameState = {
+    currentDay: 1,
+    maxDay: 3,
+    dayRecords: [null, null, null],
+    today: null
+  };
+  setText($("#cur-day"), "第1天");
+
+  $("#price").value = 6.49;
+  setText($("#price-val"), "6.49");
+  $("#stock").value = 750;
+  setText($("#stock-val"), "750");
+  $("#market").value = 120;
+  setText($("#market-val"), "120");
+
+  setText($("#rev-num"), "$0.00");
+  setText($("#profit-num"), "$0.00");
+  $("#profit-num").className = "num";
+  setText($("#sell-num"), "0");
+  setText($("#waste-num"), "0%");
+
+  if (chartPhase) chartPhase.clear();
+  if (chartCost) chartCost.clear();
+  if (chartTotalDay) chartTotalDay.clear();
+
+  $("#modal-day").style.display = "none";
+  $("#modal-bankrupt").style.display = "none";
+  $("#modal-final").style.display = "none";
+}
+
+// 绑定全部按钮点击事件
+function bindAllButtons() {
+  $("#run-day-btn").addEventListener("click", runCurrentDay);
+  $("#reset-game-btn").addEventListener("click", resetAllGame);
+  $("#next-day-btn").addEventListener("click", goNextDay);
+  $("#restart-bankrupt-btn").addEventListener("click", resetAllGame);
+  $("#restart-final-btn").addEventListener("click", resetAllGame);
+}
+
+// 页面加载完成后初始化
+document.addEventListener("DOMContentLoaded", function () {
+  initEcharts();
+  bindSliderEvent();
+  bindAllButtons();
+});
+</script>
+</body>
+</html>
